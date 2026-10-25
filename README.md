@@ -2,6 +2,29 @@
 
 A small Python / PySide6 desktop reader for local manga image folders.
 
+## Version tracking
+
+[`VERSION`](VERSION) is the source of truth for the current version.
+[`CHANGELOG.md`](CHANGELOG.md) records changes in each version.
+
+Use `MAJOR.MINOR.PATCH` version numbers: increase PATCH for bug fixes, MINOR
+for new compatible features, and MAJOR for incompatible changes. Versions
+starting with `0` indicate early development.
+
+For each release:
+
+1. Record changes under **Unreleased** in `CHANGELOG.md` as you make them.
+2. Update `VERSION`, then move the unreleased notes into a heading with the
+   matching version and release date. Leave a fresh **Unreleased** section.
+3. Run `python smoke_test.py` using the project's virtual environment.
+4. Commit the changes and create an annotated Git tag such as
+   `git tag -a v0.1.0 -m "Release 0.1.0"` (replace the version for later releases).
+5. Push the commit and tag with `git push origin main` and
+   `git push origin v0.1.0` (using the matching tag).
+
+Git tracks individual edits; the version file, changelog, and release tags
+identify named versions of the app.
+
 ## Start on Windows
 
 Install Python 3.11 or newer from https://www.python.org/downloads/ with the
