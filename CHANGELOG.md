@@ -6,6 +6,25 @@ This file records user-visible changes. The current version is stored in `VERSIO
 
 No changes yet.
 
+## 0.2.0 - 2026-10-25
+
+- Stabilized library/reader transitions: returning to the library stops page
+  rendering, and folding on the library screen no longer changes reading history.
+- Fixed folders ending in `.pdf` being treated as PDF files.
+- Added isolated device regression tests and repeatable release signing.
+- Signed and installed the optimized Pixel Fold release with an in-place signing-key
+  transition, preserving existing reading data and folder access.
+- Added a Pixel Fold library with cached cover thumbnails, saved titles and reading
+  progress, Continue reading, and removal from the library without deleting manga.
+- Added a per-title Show cover separately setting, pairing chapter pages as cover,
+  2–3, 4–5 while keeping the focused page when switching modes.
+- Pixel Fold automatically switches to two-page spreads on its unfolded display,
+  with right-to-left ordering, chapter-aware page turns, and focused-page continuity.
+- Combined Android folder and PDF opening under one **Open manga** entry.
+- Added a native Android reader for Pixel 10a and Pixel Fold: local image folders,
+  nested chapters, PDFs, touch navigation, zoom, fullscreen, right-to-left mode,
+  automatic progress, and named bookmarks. Regression checks run on Pixel Fold.
+
 ## 0.1.0 - 2026-10-25
 
 ### Added
