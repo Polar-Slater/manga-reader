@@ -4,6 +4,17 @@ This file records user-visible changes. The current version is stored in `VERSIO
 
 ## Unreleased
 
+No changes yet.
+
+## 0.3.0 - 2026-10-30
+
+- Ebook text now uses the app theme's default background and text colors.
+- Removed standalone Open folder/PDF/ebook controls and shortcuts from Windows;
+  titles open through the library. Added restoration of hidden folder titles.
+- Added Manga and Ebook categories to the Windows library and a sibling `books`
+  folder for EPUB, TXT, and PDF discovery. EPUB/TXT support includes chapter or
+  section navigation, font sizing, saved text positions, and bookmarks; ebook
+  PDFs reuse the existing PDF viewer.
 - Automatically discover title folders and PDFs inside `Manga` in the Windows
   library, with refresh and persistent hiding of removed titles.
 - Added a Windows startup library with saved folder/PDF titles, reading progress,

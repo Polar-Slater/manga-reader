@@ -1,6 +1,31 @@
 # Manga Reader for Windows
 
-A small Python / PySide6 desktop reader for local manga image folders.
+A Python / PySide6 desktop reader for local manga and ebooks.
+
+## Manga and Ebook libraries
+
+Choose **Manga** or **Ebook** in the library. Manga discovers title folders and
+PDFs inside `Manga`; Ebook discovers EPUB, TXT, and PDF files directly inside
+`books`, alongside `Manga` at the project root. Click **Refresh** after adding
+files, then double-click a title. All titles are opened through the library.
+Removing a library entry hides it without deleting the file. **Restore hidden
+titles** makes removed titles in `Manga` and `books` discoverable again.
+
+EPUB and TXT use a scrollable text reader with chapter/section navigation,
+selectable text, adjustable font size, saved reading position, and bookmarks
+(`Ctrl+D` to add, `Ctrl+B` to show). Long TXT files are split into sections for
+responsive layout. UTF-8, BOM-marked UTF-16/32, and common GB18030 Chinese text
+are supported, with a Windows-1252 fallback. If text looks incorrect, save the
+file as UTF-8. PDFs use the existing fixed-page viewer, zoom, and page bookmarks.
+
+EPUB support targets DRM-free text-based EPUB 2/3 books, with spine chapter
+order, basic formatting, embedded images, and links between chapters. Advanced
+CSS, fixed layouts, embedded fonts, scripts, audio, and video are not fully
+supported. External links/resources are not opened. Text files and individual
+EPUB resources are limited to 32 MB; EPUBs are limited to 256 MB unpacked.
+
+Run the ebook regression checks with `python windows/ebook_test.py` from the
+project root, in addition to `python windows/smoke_test.py`.
 
 ## Version tracking
 
@@ -43,9 +68,9 @@ py -3 -m venv .venv
 .\.venv\Scripts\python.exe main.py
 ```
 
-Store your manga in the **Manga** folder at the project root (`../Manga`). **Open folder**
-starts there by default. The app opens to **Your library** on every startup.
-Folders and PDFs you open are saved as titles, with their reading position.
+Store your manga in the **Manga** folder at the project root (`../Manga`).
+The app opens to **Your library** on every startup.
+Titles retain their reading position.
 Folders directly inside `Manga` are also detected automatically as separate titles;
 nested chapter folders stay within their parent title. PDFs directly inside `Manga`
 appear as individual titles too. Detection runs at startup, when returning to the
@@ -54,14 +79,14 @@ be read until you add supported pages.
 Double-click a title or select it and click **Read selected** to resume.
 Use **Library** (Ctrl+L) to return to the library while reading.
 **Remove from library** only removes the saved title; files, progress, and bookmarks
-are kept. Removed automatic titles stay hidden during discovery. Open that source
-again using **Open folder** or **Open PDF** to add it back and resume.
+are kept. Removed automatic titles stay hidden during discovery. Click
+**Restore hidden titles** to rediscover removed titles in `Manga` and `books`.
 When upgrading, the previously opened source is added to the library automatically
-without opening it. Open individual title folders to give each manga its own entry.
+without opening it. Put each manga in its own folder directly inside `Manga`.
 
-Click **Open folder** and choose a title or chapter's image folder. Images are sorted
+Choose a title from the library. Images are sorted
 naturally: page 2 comes before page 10. Supported files: JPG, JPEG, PNG, WebP,
-BMP, and GIF (first frame). You can open a parent folder containing numbered
+BMP, and GIF (first frame). A title folder can contain numbered
 chapter folders: the reader searches all subfolders, sorts folders and pages
 naturally, and moves into the next chapter when you advance past its last page.
 Images directly in a folder are read before its subfolders. Directory links
@@ -73,9 +98,7 @@ include the chapter path, so repeated image names in different chapters work.
 
 | Shortcut | Action |
 | --- | --- |
-| Ctrl+O | Open folder |
 | Ctrl+L | Return to library |
-| Ctrl+Shift+O | Open a PDF directly |
 | Ctrl+D | Add or rename a bookmark for the current page |
 | Ctrl+B | Show / hide bookmarks |
 | Ctrl+PageUp / Ctrl+PageDown | Previous / next chapter |
@@ -105,8 +128,8 @@ two-page spreads are not supported yet.
 
 ## PDF manga
 
-Put PDF files in **Manga** or its chapter subfolders and open the containing
-folder, or click **Open PDF** to select a single file. Each PDF appears as a
+Put PDF files directly in **Manga** for individual library entries, or inside
+a title's chapter folders. Select the title in the library. Each PDF appears as a
 chapter, with its pages in document order. PDFs and image files can be mixed.
 Images within each folder stay together as one chapter. That image chapter and
 the folder's PDF chapters are ordered naturally by their first file name.

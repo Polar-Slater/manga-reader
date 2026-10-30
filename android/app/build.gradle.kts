@@ -13,7 +13,7 @@ android {
         applicationId = "com.chenx.mangareader"
         minSdk = 33
         targetSdk = 37
-        versionCode = 3
+        versionCode = 4
         versionName = rootProject.file("../VERSION").readText().trim()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

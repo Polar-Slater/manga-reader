@@ -12,15 +12,17 @@ from PySide6.QtCore import Qt, QSettings, QTimer, QEvent
 from PySide6.QtGui import QAction, QImageReader, QKeySequence, QPixmap
 from PySide6.QtPdf import QPdfDocument
 from PySide6.QtWidgets import (
-    QApplication, QFileDialog, QLabel, QMainWindow, QMessageBox,
+    QApplication, QLabel, QMainWindow, QMessageBox,
     QScrollArea, QToolBar, QComboBox, QDockWidget, QListWidget,
     QListWidgetItem, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget,
     QPushButton, QInputDialog,
 )
 
-from library import image_files, library_sources
+from library import image_files, library_sources, ebook_sources
+from ebooks import Book, EbookReader
 
 DEFAULT_MANGA_FOLDER = Path(__file__).resolve().parent.parent / 'Manga'
+DEFAULT_BOOKS_FOLDER = Path(__file__).resolve().parent.parent / 'books'
 
 
 class MangaReader(QMainWindow):
@@ -37,10 +39,15 @@ class MangaReader(QMainWindow):
         self.chapter_starts = []
         self.pixmap = QPixmap()
         self.zoom = 1.0
+        self.source_kind = 'manga'
+        self.ebook_source = None
+        self.render_timer = QTimer(self)
+        self.render_timer.setSingleShot(True)
+        self.render_timer.timeout.connect(self.render)
         self.setWindowTitle('Manga Reader')
         self.resize(1000, 800)
 
-        self.label = QLabel('Put your manga in the Manga folder at the project root.\n\nCtrl+O — Open folder')
+        self.label = QLabel('Choose a title from your library to read.')
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label.setStyleSheet('QLabel { color: #dddddd; background: #202124; padding: 0; }')
         self.scroll = QScrollArea()
@@ -56,9 +63,13 @@ class MangaReader(QMainWindow):
         heading = QLabel('Your library')
         heading.setStyleSheet('font-size: 26px; font-weight: bold;')
         library_layout.addWidget(heading)
-        introduction = QLabel('Folders and PDFs in Manga appear here automatically. Choose a title to read.')
-        introduction.setWordWrap(True)
-        library_layout.addWidget(introduction)
+        self.library_kind = QComboBox()
+        self.library_kind.addItem('Manga', 'manga')
+        self.library_kind.addItem('Ebook', 'ebook')
+        library_layout.addWidget(self.library_kind)
+        self.introduction = QLabel()
+        self.introduction.setWordWrap(True)
+        library_layout.addWidget(self.introduction)
         self.library_list = QListWidget()
         self.library_list.setSpacing(6)
         self.library_list.setStyleSheet('QListWidget::item { padding: 14px; }')
@@ -75,13 +86,18 @@ class MangaReader(QMainWindow):
         for button in (self.library_open, self.library_remove):
             buttons.addWidget(button)
         buttons.addStretch()
+        self.library_restore = QPushButton('Restore hidden titles')
+        self.library_restore.clicked.connect(self.restore_hidden_titles)
         refresh = QPushButton('Refresh')
         refresh.clicked.connect(self.refresh_library)
         buttons.addWidget(refresh)
         library_layout.addLayout(buttons)
+        library_layout.addWidget(self.library_restore, 0, Qt.AlignmentFlag.AlignLeft)
         self.library_list.itemSelectionChanged.connect(self.update_library_selection)
         self.stack.addWidget(self.library_panel)
         self.stack.addWidget(self.scroll)
+        self.ebook_reader = EbookReader(self.settings)
+        self.stack.addWidget(self.ebook_reader)
         self.setCentralWidget(self.stack)
 
         toolbar = QToolBar('Reader controls')
@@ -97,8 +113,6 @@ class MangaReader(QMainWindow):
             return item
 
         action('Library', self.show_library, ['Ctrl+L'])
-        action('Open folder', self.choose_folder, ['Ctrl+O'])
-        action('Open PDF', self.choose_pdf, ['Ctrl+Shift+O'])
         common_toolbar = toolbar
         self.addToolBarBreak()
         toolbar = QToolBar('Page controls')
@@ -164,13 +178,14 @@ class MangaReader(QMainWindow):
         add = QAction('Bookmark page', self)
         add.setShortcut(QKeySequence('Ctrl+D'))
         add.triggered.connect(self.add_bookmark)
-        chapters.addAction(add)
+        common_toolbar.addAction(add)
         self.refresh_bookmarks()
         self.statusBar().showMessage('PageUp / PageDown: previous / next • F: fit page • F11: fullscreen')
         # Import the old last-opened source once, without opening or scanning it.
         if not self.settings.contains('library'):
             last_folder = self.settings.value('last_folder', '')
             self.write_library([{'source': last_folder}] if last_folder else [])
+        self.library_kind.currentIndexChanged.connect(self.refresh_library)
         self.show_library()
 
     def read_library(self):
@@ -208,24 +223,35 @@ class MangaReader(QMainWindow):
         records = self.read_library()
         known = {Path(r['source']) for r in records} | self.hidden_library_sources()
         try:
-            sources = library_sources(DEFAULT_MANGA_FOLDER)
+            sources = [(source, 'manga') for source in library_sources(DEFAULT_MANGA_FOLDER)]
+            sources += [(source, 'ebook') for source in ebook_sources(DEFAULT_BOOKS_FOLDER)]
         except OSError:
-            self.statusBar().showMessage('Could not scan Manga. Check folder access and click Refresh to retry.')
+            self.statusBar().showMessage('Could not scan the library folders. Check access and click Refresh to retry.')
             return
-        additions = [{'source': str(source)} for source in sources if source not in known]
+        additions = [{'source': str(source), 'kind': kind} for source, kind in sources if source not in known]
         if additions:
             self.write_library(records + additions)
 
     def refresh_library(self):
+        kind = self.library_kind.currentData()
+        self.introduction.setText('Folders and PDFs in Manga appear here automatically.' if kind == 'manga'
+                                  else 'EPUB, TXT, and PDF files in books appear here automatically.')
+        self.library_empty.setText('Add title folders or PDFs to Manga, then click Refresh.' if kind == 'manga'
+                                   else 'Add EPUB, TXT, or PDF files to books, then click Refresh.')
+        self.library_restore.setEnabled(bool(self.hidden_library_sources()))
         selected = self.library_list.currentItem()
         selected_source = selected.data(Qt.ItemDataRole.UserRole) if selected else None
         self.discover_library()
         self.library_list.clear()
         for record in self.read_library():
+            if record.get('kind', 'manga') != kind:
+                continue
             source = Path(record['source'])
             progress = (f"Page {record['position']} of {record['total']}"
                         if isinstance(record.get('position'), int)
                         and isinstance(record.get('total'), int) else 'Ready to read')
+            if record.get('format') == 'text' and isinstance(record.get('position'), int):
+                progress = f"Chapter / section {record['position']} of {record['total']}"
             item = QListWidgetItem(f'{source.name}\n{progress}\n{source}')
             item.setData(Qt.ItemDataRole.UserRole, record['source'])
             self.library_list.addItem(item)
@@ -245,6 +271,10 @@ class MangaReader(QMainWindow):
 
     def show_library(self):
         self.save_progress()
+        self.ebook_source = None
+        self.ebook_reader.book = None
+        self.ebook_reader.browser.book = None
+        self.ebook_reader.browser.clear()
         self.pdf.close()
         self.pdf_path = None
         self.folder = None
@@ -261,13 +291,50 @@ class MangaReader(QMainWindow):
         self.bookmarks_dock.hide()
         self.stack.setCurrentWidget(self.library_panel)
         self.setWindowTitle('Library — Manga Reader')
-        self.statusBar().showMessage('Titles in Manga are detected automatically • Double-click a title to read')
+        self.statusBar().showMessage('Choose Manga or Ebook • Double-click a title to read')
         self.refresh_library()
 
     def open_library_entry(self):
         item = self.library_list.currentItem()
         if item is not None:
-            self.load_folder(Path(item.data(Qt.ItemDataRole.UserRole)))
+            source = Path(item.data(Qt.ItemDataRole.UserRole))
+            if self.library_kind.currentData() == 'ebook':
+                self.load_ebook(source)
+            else:
+                self.load_folder(source)
+
+    def ebook_progress_key(self, source):
+        return 'ebook_progress/' + hashlib.sha256(str(source).encode('utf-8')).hexdigest()
+
+    def load_ebook(self, source):
+        source = source.resolve()
+        if source.suffix.lower() == '.pdf':
+            return self.load_folder(source, kind='ebook')
+        if source.suffix.lower() not in ('.epub', '.txt'):
+            QMessageBox.warning(self, 'Cannot open ebook', 'Choose an EPUB, TXT, or PDF file.')
+            return False
+        try:
+            book = Book(source)
+        except (OSError, ValueError) as error:
+            QMessageBox.warning(self, 'Cannot open ebook', str(error))
+            return False
+        self.show_library()
+        self.ebook_source = source
+        self.source_kind = 'ebook'
+        self.library_kind.setCurrentIndex(1)
+        try:
+            position = json.loads(self.settings.value(self.ebook_progress_key(source), '{}'))
+            if not isinstance(position, dict) or not all(isinstance(position.get(k, 0), int) for k in ('chapter', 'offset')):
+                position = {}
+        except (ValueError, TypeError):
+            position = {}
+        self.stack.setCurrentWidget(self.ebook_reader)
+        self.ebook_reader.open_book(book, position)
+        self.set_hidden_library_sources(self.hidden_library_sources() - {source})
+        self.setWindowTitle(f'{book.title} — Ebook — Manga Reader')
+        self.statusBar().showMessage('Scroll to read • Choose a chapter or section • Adjust the font size above')
+        self.save_progress()
+        return True
 
     def remove_library_entry(self):
         item = self.library_list.currentItem()
@@ -277,12 +344,9 @@ class MangaReader(QMainWindow):
             self.write_library([r for r in self.read_library() if r['source'] != source])
             self.refresh_library()
 
-    def choose_folder(self):
-        folder = QFileDialog.getExistingDirectory(
-            self, 'Open manga folder', str(DEFAULT_MANGA_FOLDER)
-        )
-        if folder:
-            self.load_folder(Path(folder))
+    def restore_hidden_titles(self):
+        self.set_hidden_library_sources(set())
+        self.refresh_library()
 
     def read_bookmarks(self):
         try:
@@ -309,20 +373,25 @@ class MangaReader(QMainWindow):
         self.refresh_bookmarks()
 
     def add_bookmark(self):
-        if not self.pages:
-            QMessageBox.information(self, 'Bookmarks', 'Open a manga page first.')
+        if not self.pages and not self.ebook_source:
+            QMessageBox.information(self, 'Bookmarks', 'Open a book or manga first.')
             return
-        source, page = str(self.folder), self.page_key(self.index)
+        if self.ebook_source:
+            position = self.ebook_reader.position()
+            source = str(self.ebook_source)
+            page = f"ebook:{position['chapter']}:{position['offset']}"
+        else:
+            source, page = str(self.folder), self.page_key(self.index)
         records = self.read_bookmarks()
         existing = next((r for r in records if r['source'] == source and r['page'] == page), None)
-        default = existing['name'] if existing else f'{self.folder.name} — {page}'
+        default = existing['name'] if existing else f'{Path(source).name} — {page}'
         name, accepted = QInputDialog.getText(self, 'Bookmark page', 'Bookmark name:', text=default)
         if not accepted or not name.strip():
             return
         if existing is not None:
             existing['name'] = name.strip()
         else:
-            records.append({'name': name.strip(), 'source': source, 'page': page})
+            records.append({'name': name.strip(), 'source': source, 'page': page, 'kind': self.source_kind})
         self.write_bookmarks(records)
         self.bookmarks_dock.show()
 
@@ -335,7 +404,18 @@ class MangaReader(QMainWindow):
         if not source.exists():
             QMessageBox.warning(self, 'Bookmark unavailable', 'The bookmarked folder or PDF was moved or deleted.')
             return
-        if not self.load_folder(source):
+        if record['page'].startswith('ebook:'):
+            try:
+                _, chapter, offset = record['page'].split(':')
+                chapter, offset = int(chapter), int(offset)
+            except ValueError:
+                QMessageBox.warning(self, 'Bookmark unavailable', 'This bookmark has an invalid text position.')
+                return
+            if self.load_ebook(source):
+                self.ebook_reader.show_chapter(chapter)
+                self.ebook_reader.restore_offset(offset)
+            return
+        if not self.load_folder(source, kind=record.get('kind', 'manga')):
             return
         target = next((i for i in range(len(self.pages)) if self.page_key(i) == record['page']), None)
         if target is None:
@@ -353,13 +433,6 @@ class MangaReader(QMainWindow):
     def progress_key(self):
         return 'progress/' + hashlib.sha256(str(self.folder).encode('utf-8')).hexdigest()
 
-    def choose_pdf(self):
-        filename, _ = QFileDialog.getOpenFileName(
-            self, 'Open manga PDF', str(DEFAULT_MANGA_FOLDER), 'PDF files (*.pdf)'
-        )
-        if filename:
-            self.load_folder(Path(filename))
-
     def page_key(self, index):
         path = self.pages[index]
         base = self.folder.parent if self.folder.is_file() else self.folder
@@ -371,7 +444,7 @@ class MangaReader(QMainWindow):
         path = self.pages[index]
         return path if self.pdf_pages[index] is not None else path.parent
 
-    def load_folder(self, folder, quiet_empty=False):
+    def load_folder(self, folder, quiet_empty=False, kind='manga'):
         folder = folder.resolve()
         try:
             files = [folder] if folder.is_file() else image_files(folder, include_pdf=True)
@@ -404,6 +477,12 @@ class MangaReader(QMainWindow):
             return
         self.save_progress()
         self.folder = folder.resolve()
+        self.ebook_source = None
+        self.ebook_reader.book = None
+        self.ebook_reader.browser.book = None
+        self.ebook_reader.browser.clear()
+        self.source_kind = kind
+        self.library_kind.setCurrentIndex(1 if kind == 'ebook' else 0)
         self.pages = pages
         self.pdf_pages = pdf_pages
         self.pdf.close()
@@ -521,24 +600,31 @@ class MangaReader(QMainWindow):
         self.settings.setValue('rtl', self.rtl.isChecked())
 
     def save_progress(self):
+        if self.ebook_source and self.ebook_reader.book:
+            position = self.ebook_reader.position()
+            self.settings.setValue(self.ebook_progress_key(self.ebook_source), json.dumps(position))
+            record = {'source': str(self.ebook_source), 'kind': 'ebook', 'format': 'text',
+                      'position': position['chapter'] + 1, 'total': len(self.ebook_reader.book.chapters)}
+            self.write_library([record] + [r for r in self.read_library() if r['source'] != record['source']])
         if self.folder and self.pages:
             self.settings.setValue(self.progress_key(), self.page_key(self.index))
-            record = {'source': str(self.folder), 'position': self.index + 1, 'total': len(self.pages)}
+            record = {'source': str(self.folder), 'kind': self.source_kind, 'position': self.index + 1, 'total': len(self.pages)}
             self.write_library([record] + [r for r in self.read_library() if r['source'] != record['source']])
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if hasattr(self, 'fit'):
-            QTimer.singleShot(0, self.render)
+            self.render_timer.start(0)
 
     def eventFilter(self, watched, event):
         if (watched is self.scroll.viewport()
                 and event.type() == QEvent.Type.Resize
                 and hasattr(self, 'fit') and self.fit.isChecked()):
-            QTimer.singleShot(0, self.render)
+            self.render_timer.start(0)
         return super().eventFilter(watched, event)
 
     def closeEvent(self, event):
+        self.render_timer.stop()
         self.save_progress()
         self.save_preferences()
         self.settings.sync()

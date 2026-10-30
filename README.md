@@ -1,6 +1,7 @@
 # Manga Reader
 
 Local manga readers for Windows and Android, supporting image folders and PDFs.
+The Windows app also has an Ebook library for EPUB, TXT, and PDF books.
 
 - **Windows:** [Setup and reading guide](windows/README.md). Requires Python 3.12
   or newer. Double-click `windows/run.bat` to start.
@@ -27,6 +28,8 @@ to manga, ebooks, or other reading content loaded into the apps.
 - `android/` — Native Android app and its build files and tests.
 - `Manga/` — Local manga files (excluded from Git). The Windows reader opens here
   by default; existing file paths, bookmarks, and reading progress are preserved.
+- `books/` — Local EPUB, TXT, and PDF books for the Windows Ebook library.
+  Reading content is excluded from Git; the empty folder is included.
 - `VERSION` and `CHANGELOG.md` — Shared version and release history.
 
 The Windows launcher can reuse an existing `.venv` at the project root. New
@@ -38,6 +41,7 @@ From the project root, using the existing environment:
 
 ```powershell
 .\.venv\Scripts\python.exe windows\smoke_test.py
+.\.venv\Scripts\python.exe windows\ebook_test.py
 ```
 
 If the environment was created inside `windows/`, use

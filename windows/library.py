@@ -22,6 +22,15 @@ def library_sources(folder: Path) -> list[Path]:
             and (path.is_dir() or (path.is_file() and path.suffix.lower() == '.pdf'))]
 
 
+def ebook_sources(folder: Path) -> list[Path]:
+    """Discover book files without opening their contents or following links."""
+    if not folder.exists():
+        return []
+    return [path.resolve() for path in sorted(folder.iterdir(), key=natural_key)
+            if not path.is_symlink() and not path.is_junction() and path.is_file()
+            and path.suffix.lower() in {'.epub', '.txt', '.pdf'}]
+
+
 def image_files(folder: Path, include_pdf=False) -> list[Path]:
     extensions = SUPPORTED_EXTENSIONS | ({'.pdf'} if include_pdf else set())
 

@@ -16,7 +16,9 @@ from main import MangaReader
 
 
 app = QApplication([])
-with tempfile.TemporaryDirectory() as directory, patch('main.DEFAULT_MANGA_FOLDER', Path(directory) / 'auto_library'):
+with (tempfile.TemporaryDirectory() as directory,
+      patch('main.DEFAULT_MANGA_FOLDER', Path(directory) / 'auto_library'),
+      patch('main.DEFAULT_BOOKS_FOLDER', Path(directory) / 'books')):
     root = Path(directory)
     QSettings.setDefaultFormat(QSettings.Format.IniFormat)
     QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, str(root / 'settings'))
