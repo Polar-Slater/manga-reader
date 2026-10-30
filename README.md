@@ -1,100 +1,47 @@
 # Manga Reader
 
-A small Python / PySide6 desktop reader for local manga image folders.
+Local manga readers for Windows and Android, supporting image folders and PDFs.
+
+- **Windows:** [Setup and reading guide](windows/README.md). Requires Python 3.12
+  or newer. Double-click `windows/run.bat` to start.
+- **Android:** [Setup and reading guide](android/README.md).
+
+## Project layout
+
+- `windows/` — Python desktop app, launcher, requirements, and smoke tests.
+- `android/` — Native Android app and its build files and tests.
+- `Manga/` — Local manga files (excluded from Git). The Windows reader opens here
+  by default; existing file paths, bookmarks, and reading progress are preserved.
+- `VERSION` and `CHANGELOG.md` — Shared version and release history.
+
+The Windows launcher can reuse an existing `.venv` at the project root. New
+installations create their environment inside `windows/`.
+
+## Validation
+
+From the project root, using the existing environment:
+
+```powershell
+.\.venv\Scripts\python.exe windows\smoke_test.py
+```
+
+If the environment was created inside `windows/`, use
+`windows\.venv\Scripts\python.exe` instead. Android checks are documented in the
+[Android guide](android/README.md#checks).
 
 ## Version tracking
 
-[`VERSION`](VERSION) is the source of truth for the current version.
+[`VERSION`](VERSION) is the source of truth for both apps.
 [`CHANGELOG.md`](CHANGELOG.md) records changes in each version.
-
-Use `MAJOR.MINOR.PATCH` version numbers: increase PATCH for bug fixes, MINOR
-for new compatible features, and MAJOR for incompatible changes. Versions
-starting with `0` indicate early development.
+Use `MAJOR.MINOR.PATCH`: PATCH for fixes, MINOR for compatible features, and MAJOR
+for incompatible changes. Versions starting with `0` indicate early development.
 
 For each release:
 
-1. Record changes under **Unreleased** in `CHANGELOG.md` as you make them.
-2. Update `VERSION`, then move the unreleased notes into a heading with the
-   matching version and release date. Leave a fresh **Unreleased** section.
-3. Run `python smoke_test.py` using the project's virtual environment.
-4. Commit the changes and create an annotated Git tag such as
-   `git tag -a v0.1.0 -m "Release 0.1.0"` (replace the version for later releases).
-5. Push the commit and tag with `git push origin main` and
-   `git push origin v0.1.0` (using the matching tag).
-
-Git tracks individual edits; the version file, changelog, and release tags
-identify named versions of the app.
-
-## Start on Windows
-
-Install Python 3.11 or newer from https://www.python.org/downloads/ with the
-Python launcher enabled. Double-click `run.bat`. On first launch it creates a
-local `.venv` and installs PySide6 (internet access required).
-
-Or, from PowerShell in this folder:
-
-```powershell
-py -3 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe main.py
-```
-
-Store your manga in the **Manga** folder beside `main.py`. **Open folder**
-starts there by default. The reader resumes the last opened folder on startup;
-if that folder is unavailable, it loads Manga (or shows the welcome screen
-if Manga is empty).
-
-Click **Open folder** and choose a title or chapter's image folder. Images are sorted
-naturally: page 2 comes before page 10. Supported files: JPG, JPEG, PNG, WebP,
-BMP, and GIF (first frame). You can open a parent folder containing numbered
-chapter folders: the reader searches all subfolders, sorts folders and pages
-naturally, and moves into the next chapter when you advance past its last page.
-Images directly in a folder are read before its subfolders. Directory links
-and junctions are skipped.
-
-Use the chapter dropdown or **Previous chapter / Next chapter** to jump between
-folders. Each folder containing images is treated as a chapter. Bookmarks
-include the chapter path, so repeated image names in different chapters work.
-
-| Shortcut | Action |
-| --- | --- |
-| Ctrl+O | Open folder |
-| Ctrl+Shift+O | Open a PDF directly |
-| Ctrl+D | Add or rename a bookmark for the current page |
-| Ctrl+B | Show / hide bookmarks |
-| Ctrl+PageUp / Ctrl+PageDown | Previous / next chapter |
-| Left / Right | Previous / next; reversed in right-to-left mode |
-| PageUp / PageDown or Space | Previous / next (Space advances) |
-| + / − | Zoom in / out |
-| F | Toggle fit-to-window |
-| F11 / Escape | Toggle fullscreen / leave fullscreen |
-
-When zoomed in, use the scrollbars or mouse wheel to move around the page.
-The last folder and each folder's reading position are saved automatically
-using Qt's user settings (on Windows, under HKCU\Software\LearningCode\MangaReader).
-Only one original image is held in memory at a time.
-
-## Named bookmarks
-
-Click **Bookmark page** (Ctrl+D), enter a name, and save. You can save multiple
-pages across image folders and PDFs. **Bookmarks** (Ctrl+B) opens the saved list;
-double-click an entry or select it and click **Go to bookmark**. Use
-**Remove selected** to delete an entry. Bookmark the same page again to rename
-it. Bookmarks persist across restarts, separately from automatic reading progress.
-They reference the original file locations; moving or deleting manga can make
-bookmarks unavailable.
-
-This first version reads extracted image folders; CBZ/CBR archives and
-two-page spreads are not supported yet.
-
-## PDF manga
-
-Put PDF files in **Manga** or its chapter subfolders and open the containing
-folder, or click **Open PDF** to select a single file. Each PDF appears as a
-chapter, with its pages in document order. PDFs and image files can be mixed.
-Images within each folder stay together as one chapter. That image chapter and
-the folder's PDF chapters are ordered naturally by their first file name.
-Navigation, zoom, fullscreen, and exact-page bookmarks also work for PDFs.
-Only the current PDF page is rendered, at up to 2400 pixels on its longest side;
-high zoom levels can therefore look soft. Damaged and password-protected PDFs
-are reported and skipped. Password entry is not supported yet.
+1. Record changes under **Unreleased** in `CHANGELOG.md`.
+2. Update `VERSION`, move the notes into a matching version/date heading, and
+   leave a fresh **Unreleased** section.
+3. Run the Windows smoke tests and relevant Android checks.
+4. Commit changes and create an annotated tag, for example
+   `git tag -a v0.1.0 -m "Release 0.1.0"` using the actual release version.
+5. Push the commit and tag.

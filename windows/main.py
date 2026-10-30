@@ -5,6 +5,9 @@ import json
 from pathlib import Path
 import sys
 
+if sys.version_info < (3, 12):
+    sys.exit('Manga Reader requires Python 3.12 or newer. Recreate .venv with a supported Python version.')
+
 from PySide6.QtCore import Qt, QSettings, QTimer, QEvent
 from PySide6.QtGui import QAction, QImageReader, QKeySequence, QPixmap
 from PySide6.QtPdf import QPdfDocument
@@ -16,7 +19,7 @@ from PySide6.QtWidgets import (
 
 from library import image_files
 
-DEFAULT_MANGA_FOLDER = Path(__file__).resolve().parent / 'Manga'
+DEFAULT_MANGA_FOLDER = Path(__file__).resolve().parent.parent / 'Manga'
 
 
 class MangaReader(QMainWindow):
@@ -36,7 +39,7 @@ class MangaReader(QMainWindow):
         self.setWindowTitle('Manga Reader')
         self.resize(1000, 800)
 
-        self.label = QLabel('Put your manga in the Manga folder beside this app.\n\nCtrl+O — Open folder')
+        self.label = QLabel('Put your manga in the Manga folder at the project root.\n\nCtrl+O — Open folder')
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label.setStyleSheet('QLabel { color: #dddddd; background: #202124; padding: 0; }')
         self.scroll = QScrollArea()

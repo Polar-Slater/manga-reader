@@ -230,7 +230,7 @@ private fun PageCanvas(vm: ReaderViewModel, onToggleControls: () -> Unit) {
             panY = panY.coerceIn(-height * (zoom - 1) / 2, height * (zoom - 1) / 2)
         }
         Box(Modifier.fillMaxSize()
-            .pointerInput(page.key, vm.rtl, vm.twoPage) {
+            .pointerInput(page.key, vm.rtl, vm.twoPage, vm.separateCover) {
                 detectTapGestures(
                     onDoubleTap = { zoom = if (zoom > 1f) 1f else 2f; panX = 0f; panY = 0f },
                     onTap = {
@@ -238,7 +238,7 @@ private fun PageCanvas(vm: ReaderViewModel, onToggleControls: () -> Unit) {
                         else vm.move(if ((it.x > size.width / 2) != vm.rtl) 1 else -1)
                     })
             }
-            .pointerInput(page.key, vm.rtl, vm.twoPage) {
+            .pointerInput(page.key, vm.rtl, vm.twoPage, vm.separateCover) {
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
                     var travel = Offset.Zero

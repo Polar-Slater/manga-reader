@@ -4,7 +4,11 @@ This file records user-visible changes. The current version is stored in `VERSIO
 
 ## Unreleased
 
-No changes yet.
+- Moved the Windows app, launcher, tests, and documentation into `windows/`.
+  Existing manga paths and the root Python environment remain usable.
+- Fixed Android zoom and pan gestures after toggling Show cover separately.
+- Raised the Windows minimum Python version to 3.12, with startup checks and
+  guidance for updating existing virtual environments.
 
 ## 0.2.0 - 2026-10-25
 
