@@ -6,6 +6,21 @@ Local manga readers for Windows and Android, supporting image folders and PDFs.
   or newer. Double-click `windows/run.bat` to start.
 - **Android:** [Setup and reading guide](android/README.md).
 
+## License
+
+The original code in this repository, including the Windows and Android apps,
+is licensed under the [GNU General Public License version 3](LICENSE)
+(`GPL-3.0-only`).
+
+You may use, study, modify, and redistribute it, including commercially. If you
+distribute modified versions or other covered works, you must provide the
+corresponding source code to recipients under GPLv3 and comply with its notice
+and other requirements. Private modifications do not have to be published.
+The software is provided without warranty, as described in the license.
+
+Third-party dependencies retain their own licenses. This license does not apply
+to manga, ebooks, or other reading content loaded into the apps.
+
 ## Project layout
 
 - `windows/` — Python desktop app, launcher, requirements, and smoke tests.
