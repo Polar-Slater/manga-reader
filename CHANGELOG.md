@@ -4,6 +4,14 @@ This file records user-visible changes. The current version is stored in `VERSIO
 
 ## Unreleased
 
+- Automatically discover title folders and PDFs inside `Manga` in the Windows
+  library, with refresh and persistent hiding of removed titles.
+- Added a Windows startup library with saved folder/PDF titles, reading progress,
+  explicit resume, and removal without deleting files or bookmarks. The previous
+  source migrates into the library instead of opening automatically.
+
+## 0.2.1 - 2026-10-30
+
 - Moved the Windows app, launcher, tests, and documentation into `windows/`.
   Existing manga paths and the root Python environment remain usable.
 - Fixed Android zoom and pan gestures after toggling Show cover separately.
