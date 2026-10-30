@@ -14,10 +14,11 @@ from PySide6.QtPdf import QPdfDocument
 from PySide6.QtWidgets import (
     QApplication, QFileDialog, QLabel, QMainWindow, QMessageBox,
     QScrollArea, QToolBar, QComboBox, QDockWidget, QListWidget,
-    QListWidgetItem, QWidget, QVBoxLayout, QPushButton, QInputDialog,
+    QListWidgetItem, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget,
+    QPushButton, QInputDialog,
 )
 
-from library import image_files
+from library import image_files, library_sources
 
 DEFAULT_MANGA_FOLDER = Path(__file__).resolve().parent.parent / 'Manga'
 
@@ -48,7 +49,40 @@ class MangaReader(QMainWindow):
         self.scroll.setWidgetResizable(True)
         self.scroll.viewport().installEventFilter(self)
         self.scroll.setStyleSheet('QScrollArea { border: none; background: #202124; }')
-        self.setCentralWidget(self.scroll)
+        self.stack = QStackedWidget()
+        self.library_panel = QWidget()
+        library_layout = QVBoxLayout(self.library_panel)
+        library_layout.setContentsMargins(24, 24, 24, 24)
+        heading = QLabel('Your library')
+        heading.setStyleSheet('font-size: 26px; font-weight: bold;')
+        library_layout.addWidget(heading)
+        introduction = QLabel('Folders and PDFs in Manga appear here automatically. Choose a title to read.')
+        introduction.setWordWrap(True)
+        library_layout.addWidget(introduction)
+        self.library_list = QListWidget()
+        self.library_list.setSpacing(6)
+        self.library_list.setStyleSheet('QListWidget::item { padding: 14px; }')
+        self.library_list.itemDoubleClicked.connect(lambda item: self.open_library_entry())
+        library_layout.addWidget(self.library_list)
+        self.library_empty = QLabel('Add title folders or PDFs to Manga, then click Refresh. You can also open a folder or PDF from elsewhere.')
+        self.library_empty.setWordWrap(True)
+        library_layout.addWidget(self.library_empty)
+        buttons = QHBoxLayout()
+        self.library_open = QPushButton('Read selected')
+        self.library_open.clicked.connect(self.open_library_entry)
+        self.library_remove = QPushButton('Remove from library')
+        self.library_remove.clicked.connect(self.remove_library_entry)
+        for button in (self.library_open, self.library_remove):
+            buttons.addWidget(button)
+        buttons.addStretch()
+        refresh = QPushButton('Refresh')
+        refresh.clicked.connect(self.refresh_library)
+        buttons.addWidget(refresh)
+        library_layout.addLayout(buttons)
+        self.library_list.itemSelectionChanged.connect(self.update_library_selection)
+        self.stack.addWidget(self.library_panel)
+        self.stack.addWidget(self.scroll)
+        self.setCentralWidget(self.stack)
 
         toolbar = QToolBar('Reader controls')
         toolbar.setMovable(False)
@@ -62,9 +96,15 @@ class MangaReader(QMainWindow):
             toolbar.addAction(item)
             return item
 
+        action('Library', self.show_library, ['Ctrl+L'])
         action('Open folder', self.choose_folder, ['Ctrl+O'])
         action('Open PDF', self.choose_pdf, ['Ctrl+Shift+O'])
-        toolbar.addSeparator()
+        common_toolbar = toolbar
+        self.addToolBarBreak()
+        toolbar = QToolBar('Page controls')
+        self.reader_toolbar = toolbar
+        toolbar.setMovable(False)
+        self.addToolBar(toolbar)
         self.previous = action('Previous', lambda: self.move(-1), ['PageUp'])
         self.next = action('Next', lambda: self.move(1), ['PageDown', 'Space'])
         action('←', lambda: self.move(1 if self.rtl.isChecked() else -1), ['Left'])
@@ -83,6 +123,7 @@ class MangaReader(QMainWindow):
         self.addAction(escape)
         self.addToolBarBreak()
         chapters = QToolBar('Chapters')
+        self.chapters_toolbar = chapters
         chapters.setMovable(False)
         self.addToolBar(chapters)
         self.previous_chapter = QAction('Previous chapter', self)
@@ -119,18 +160,122 @@ class MangaReader(QMainWindow):
         self.bookmarks_dock.hide()
         toggle = self.bookmarks_dock.toggleViewAction()
         toggle.setShortcut(QKeySequence('Ctrl+B'))
-        chapters.addAction(toggle)
+        common_toolbar.addAction(toggle)
         add = QAction('Bookmark page', self)
         add.setShortcut(QKeySequence('Ctrl+D'))
         add.triggered.connect(self.add_bookmark)
         chapters.addAction(add)
         self.refresh_bookmarks()
         self.statusBar().showMessage('PageUp / PageDown: previous / next • F: fit page • F11: fullscreen')
-        last_folder = self.settings.value('last_folder', '')
-        if last_folder and Path(last_folder).exists():
-            QTimer.singleShot(0, lambda: self.load_folder(Path(last_folder)))
-        elif DEFAULT_MANGA_FOLDER.is_dir():
-            QTimer.singleShot(0, lambda: self.load_folder(DEFAULT_MANGA_FOLDER, quiet_empty=True))
+        # Import the old last-opened source once, without opening or scanning it.
+        if not self.settings.contains('library'):
+            last_folder = self.settings.value('last_folder', '')
+            self.write_library([{'source': last_folder}] if last_folder else [])
+        self.show_library()
+
+    def read_library(self):
+        try:
+            records = json.loads(self.settings.value('library', '[]'))
+            if not isinstance(records, list):
+                return []
+            valid, seen = [], set()
+            for record in records:
+                if not isinstance(record, dict):
+                    continue
+                source = record.get('source')
+                if isinstance(source, str) and source and source not in seen:
+                    valid.append(record)
+                    seen.add(source)
+            return valid
+        except (ValueError, TypeError):
+            return []
+
+    def write_library(self, records):
+        self.settings.setValue('library', json.dumps(records, ensure_ascii=False))
+        self.settings.sync()
+
+    def hidden_library_sources(self):
+        try:
+            sources = json.loads(self.settings.value('hidden_library_sources', '[]'))
+            return {Path(s) for s in sources if isinstance(s, str) and s} if isinstance(sources, list) else set()
+        except (ValueError, TypeError):
+            return set()
+
+    def set_hidden_library_sources(self, sources):
+        self.settings.setValue('hidden_library_sources', json.dumps(sorted(str(s) for s in sources)))
+
+    def discover_library(self):
+        records = self.read_library()
+        known = {Path(r['source']) for r in records} | self.hidden_library_sources()
+        try:
+            sources = library_sources(DEFAULT_MANGA_FOLDER)
+        except OSError:
+            self.statusBar().showMessage('Could not scan Manga. Check folder access and click Refresh to retry.')
+            return
+        additions = [{'source': str(source)} for source in sources if source not in known]
+        if additions:
+            self.write_library(records + additions)
+
+    def refresh_library(self):
+        selected = self.library_list.currentItem()
+        selected_source = selected.data(Qt.ItemDataRole.UserRole) if selected else None
+        self.discover_library()
+        self.library_list.clear()
+        for record in self.read_library():
+            source = Path(record['source'])
+            progress = (f"Page {record['position']} of {record['total']}"
+                        if isinstance(record.get('position'), int)
+                        and isinstance(record.get('total'), int) else 'Ready to read')
+            item = QListWidgetItem(f'{source.name}\n{progress}\n{source}')
+            item.setData(Qt.ItemDataRole.UserRole, record['source'])
+            self.library_list.addItem(item)
+        self.library_empty.setVisible(self.library_list.count() == 0)
+        if self.library_list.count():
+            self.library_list.setCurrentRow(0)
+            for row in range(self.library_list.count()):
+                if self.library_list.item(row).data(Qt.ItemDataRole.UserRole) == selected_source:
+                    self.library_list.setCurrentRow(row)
+                    break
+        self.update_library_selection()
+
+    def update_library_selection(self):
+        selected = self.library_list.currentItem() is not None
+        self.library_open.setEnabled(selected)
+        self.library_remove.setEnabled(selected)
+
+    def show_library(self):
+        self.save_progress()
+        self.pdf.close()
+        self.pdf_path = None
+        self.folder = None
+        self.pages = []
+        self.pdf_pages = []
+        self.chapter_starts = []
+        self.index = 0
+        self.pixmap = QPixmap()
+        self.label.clear()
+        self.reader_toolbar.setEnabled(False)
+        self.reader_toolbar.hide()
+        self.chapters_toolbar.setEnabled(False)
+        self.chapters_toolbar.hide()
+        self.bookmarks_dock.hide()
+        self.stack.setCurrentWidget(self.library_panel)
+        self.setWindowTitle('Library — Manga Reader')
+        self.statusBar().showMessage('Titles in Manga are detected automatically • Double-click a title to read')
+        self.refresh_library()
+
+    def open_library_entry(self):
+        item = self.library_list.currentItem()
+        if item is not None:
+            self.load_folder(Path(item.data(Qt.ItemDataRole.UserRole)))
+
+    def remove_library_entry(self):
+        item = self.library_list.currentItem()
+        if item is not None:
+            source = item.data(Qt.ItemDataRole.UserRole)
+            self.set_hidden_library_sources(self.hidden_library_sources() | {Path(source)})
+            self.write_library([r for r in self.read_library() if r['source'] != source])
+            self.refresh_library()
 
     def choose_folder(self):
         folder = QFileDialog.getExistingDirectory(
@@ -275,6 +420,12 @@ class MangaReader(QMainWindow):
                 relative = self.chapter_key(i).relative_to(base)
                 self.chapter_picker.addItem(str(relative) if relative.parts else self.folder.name)
         self.settings.setValue('last_folder', str(self.folder))
+        self.set_hidden_library_sources(self.hidden_library_sources() - {self.folder})
+        self.stack.setCurrentWidget(self.scroll)
+        self.reader_toolbar.setEnabled(True)
+        self.reader_toolbar.show()
+        self.chapters_toolbar.setEnabled(True)
+        self.chapters_toolbar.show()
         self.show_page()
         return True
 
@@ -372,6 +523,8 @@ class MangaReader(QMainWindow):
     def save_progress(self):
         if self.folder and self.pages:
             self.settings.setValue(self.progress_key(), self.page_key(self.index))
+            record = {'source': str(self.folder), 'position': self.index + 1, 'total': len(self.pages)}
+            self.write_library([record] + [r for r in self.read_library() if r['source'] != record['source']])
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

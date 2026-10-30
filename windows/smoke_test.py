@@ -11,12 +11,12 @@ from PySide6.QtGui import QImage, QColor, QPdfWriter, QPainter
 from unittest.mock import patch
 from PySide6.QtWidgets import QApplication
 
-from library import image_files
+from library import image_files, library_sources
 from main import MangaReader
 
 
 app = QApplication([])
-with tempfile.TemporaryDirectory() as directory:
+with tempfile.TemporaryDirectory() as directory, patch('main.DEFAULT_MANGA_FOLDER', Path(directory) / 'auto_library'):
     root = Path(directory)
     QSettings.setDefaultFormat(QSettings.Format.IniFormat)
     QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, str(root / 'settings'))
@@ -49,6 +49,8 @@ with tempfile.TemporaryDirectory() as directory:
     window.close()
     restored = MangaReader()
     app.processEvents()
+    assert not restored.pages and restored.stack.currentWidget() is restored.library_panel
+    restored.open_library_entry()
     assert restored.index == 2
     assert restored.pages[restored.index].name == '10.png'
     restored.close()
@@ -84,6 +86,8 @@ with tempfile.TemporaryDirectory() as directory:
     restored.close()
     resumed = MangaReader()
     app.processEvents()
+    assert not resumed.pages
+    resumed.open_library_entry()
     assert resumed.index == 7
     assert resumed.pages[7].relative_to(manga).as_posix() == '10 folder/manga 02.png'
     resumed.close()
@@ -113,6 +117,8 @@ with tempfile.TemporaryDirectory() as directory:
     resumed.close()
     pdf_resume = MangaReader()
     app.processEvents()
+    assert not pdf_resume.pages
+    pdf_resume.open_library_entry()
     assert pdf_resume.index == 1 and pdf_resume.pdf_pages[1] == 1
     pdf_resume.load_folder(pdf_file)
     assert len(pdf_resume.pages) == 2
@@ -120,6 +126,8 @@ with tempfile.TemporaryDirectory() as directory:
     pdf_resume.close()
     direct_resume = MangaReader()
     app.processEvents()
+    assert not direct_resume.pages
+    direct_resume.open_library_entry()
     assert direct_resume.folder == pdf_file and direct_resume.index == 1
     with patch('main.QInputDialog.getText', return_value=('Favorite PDF page', True)):
         direct_resume.add_bookmark()
@@ -189,8 +197,93 @@ with tempfile.TemporaryDirectory() as directory:
     with patch('main.QMessageBox.warning') as warning:
         direct_resume.load_folder(pdf_folder)
         assert warning.called and len(direct_resume.pages) == 3
+    # Returning home releases the reader and disables page navigation.
+    direct_resume.load_folder(manga)
+    direct_resume.move(1)
+    saved_index = direct_resume.index
+    progress_key = direct_resume.progress_key()
+    saved_position = direct_resume.settings.value(progress_key)
+    bookmarks = direct_resume.read_bookmarks()
+    direct_resume.show_library()
+    assert direct_resume.stack.currentWidget() is direct_resume.library_panel
+    assert not direct_resume.pages and not direct_resume.reader_toolbar.isEnabled()
+    direct_resume.move(1)
+    assert not direct_resume.pages
+    assert direct_resume.read_library()[0]['position'] == saved_index + 1
+    assert direct_resume.library_list.count() == len(direct_resume.read_library())
+    # Removal affects membership only, including after restarting with an empty library.
+    while direct_resume.library_list.count():
+        direct_resume.remove_library_entry()
+    assert manga.exists() and direct_resume.read_bookmarks() == bookmarks
+    assert direct_resume.settings.value(progress_key) == saved_position
     direct_resume.close()
-    for reader_window in [window, restored, resumed, pdf_resume, direct_resume, bookmark_reader]:
+    home = MangaReader()
+    app.processEvents()
+    assert home.library_list.count() == 0 and not home.pages
+    home.load_folder(manga)
+    assert home.index == saved_index
+    home.show_library()
+    # Missing sources remain removable and never take the user away from the library.
+    home.write_library([{'source': str(root / 'missing')}])
+    home.refresh_library()
+    with patch('main.QMessageBox.warning') as warning:
+        home.open_library_entry()
+        assert warning.called and not home.pages
+        assert home.stack.currentWidget() is home.library_panel
+    home.close()
+    # Legacy settings migrate once without scanning a manga at startup.
+    home.settings.remove('library')
+    home.settings.setValue('last_folder', str(manga))
+    with patch('main.image_files', side_effect=AssertionError('Startup must not scan manga')):
+        migrated = MangaReader()
+        app.processEvents()
+        assert not migrated.pages and migrated.library_list.count() == 1
+    migrated.open_library_entry()
+    assert migrated.index == saved_index
+    migrated.show_library()
+    migrated.settings.setValue('library', '{invalid')
+    migrated.refresh_library()
+    assert migrated.library_list.count() == 0
+    migrated.close()
+    # Discover immediate title folders/PDFs, without treating chapters as titles.
+    auto_root = root / 'auto_library'
+    for title in ['Title 10', 'Title 2']:
+        chapter = auto_root / title / 'Chapter 1'
+        chapter.mkdir(parents=True)
+        assert image.save(str(chapter / '1.png'))
+        assert image.save(str(chapter / '2.png'))
+    (auto_root / 'notes.txt').write_text('not a title')
+    (auto_root / 'Book.PDF').write_bytes(pdf_file.read_bytes())
+    assert [p.name for p in library_sources(auto_root)] == ['Book.PDF', 'Title 2', 'Title 10']
+    auto = MangaReader()
+    assert not auto.pages and auto.library_list.count() == 3
+    auto.library_list.setCurrentRow(1)
+    auto.open_library_entry()
+    auto.move(1)
+    auto.show_library()
+    assert auto.read_library()[0]['position'] == 2
+    auto.refresh_library()
+    assert auto.library_list.count() == 3
+    # Removed automatic titles stay hidden across refresh/restart; explicit open restores them.
+    auto.library_list.setCurrentRow(0)
+    auto.remove_library_entry()
+    auto.refresh_library()
+    assert auto.library_list.count() == 2
+    auto.close()
+    rediscovered = MangaReader()
+    assert rediscovered.library_list.count() == 2 and not rediscovered.pages
+    rediscovered.load_folder(auto_root / 'Title 2')
+    assert rediscovered.index == 1
+    (auto_root / 'Title 3').mkdir()
+    rediscovered.show_library()
+    assert rediscovered.library_list.count() == 4
+    rediscovered.refresh_library()
+    assert rediscovered.library_list.count() == 4
+    with patch('main.library_sources', side_effect=PermissionError('unavailable')):
+        rediscovered.refresh_library()
+        assert rediscovered.library_list.count() == 4
+    rediscovered.close()
+    for reader_window in [window, restored, resumed, pdf_resume, direct_resume, bookmark_reader, home, migrated, auto, rediscovered]:
         reader_window.deleteLater()
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
     app.processEvents()
@@ -199,3 +292,5 @@ print('PASS: nested chapters, chapter controls, cross-chapter paging, and duplic
 print('PASS: PDF rendering, mixed image/PDF chapters, zoom, folder/direct PDF resume, and damaged PDFs')
 print('PASS: named image/PDF bookmarks, rename, cancellation, restart persistence, missing source, and deletion')
 print('PASS: contiguous mixed-file chapters and fit-page resizing when bookmarks open and close')
+print('PASS: library startup, explicit resume, progress, removal, missing sources, and legacy migration')
+print('PASS: automatic title discovery, natural ordering, refresh, deduplication, and persistent hiding')

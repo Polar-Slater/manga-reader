@@ -44,9 +44,20 @@ py -3 -m venv .venv
 ```
 
 Store your manga in the **Manga** folder at the project root (`../Manga`). **Open folder**
-starts there by default. The reader resumes the last opened folder on startup;
-if that folder is unavailable, it loads Manga (or shows the welcome screen
-if Manga is empty).
+starts there by default. The app opens to **Your library** on every startup.
+Folders and PDFs you open are saved as titles, with their reading position.
+Folders directly inside `Manga` are also detected automatically as separate titles;
+nested chapter folders stay within their parent title. PDFs directly inside `Manga`
+appear as individual titles too. Detection runs at startup, when returning to the
+library, and when you click **Refresh**. Empty folders appear as titles but cannot
+be read until you add supported pages.
+Double-click a title or select it and click **Read selected** to resume.
+Use **Library** (Ctrl+L) to return to the library while reading.
+**Remove from library** only removes the saved title; files, progress, and bookmarks
+are kept. Removed automatic titles stay hidden during discovery. Open that source
+again using **Open folder** or **Open PDF** to add it back and resume.
+When upgrading, the previously opened source is added to the library automatically
+without opening it. Open individual title folders to give each manga its own entry.
 
 Click **Open folder** and choose a title or chapter's image folder. Images are sorted
 naturally: page 2 comes before page 10. Supported files: JPG, JPEG, PNG, WebP,
@@ -63,6 +74,7 @@ include the chapter path, so repeated image names in different chapters work.
 | Shortcut | Action |
 | --- | --- |
 | Ctrl+O | Open folder |
+| Ctrl+L | Return to library |
 | Ctrl+Shift+O | Open a PDF directly |
 | Ctrl+D | Add or rename a bookmark for the current page |
 | Ctrl+B | Show / hide bookmarks |

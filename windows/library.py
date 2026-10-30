@@ -6,13 +6,24 @@ import re
 SUPPORTED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif'}
 
 
+def natural_key(path: Path):
+    return tuple(
+        (1, int(part)) if part.isdigit() else (0, part.casefold())
+        for part in re.split(r'(\d+)', path.name)
+    ), path.name
+
+
+def library_sources(folder: Path) -> list[Path]:
+    """List top-level titles without scanning chapters or opening any pages."""
+    if not folder.exists():
+        return []
+    return [path.resolve() for path in sorted(folder.iterdir(), key=natural_key)
+            if not path.is_symlink() and not path.is_junction()
+            and (path.is_dir() or (path.is_file() and path.suffix.lower() == '.pdf'))]
+
+
 def image_files(folder: Path, include_pdf=False) -> list[Path]:
     extensions = SUPPORTED_EXTENSIONS | ({'.pdf'} if include_pdf else set())
-    def natural_key(path: Path):
-        return tuple(
-            (1, int(part)) if part.isdigit() else (0, part.casefold())
-            for part in re.split(r'(\d+)', path.name)
-        ), path.name
 
     def collect(directory):
         entries = sorted(directory.iterdir(), key=natural_key)
