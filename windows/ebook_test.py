@@ -68,6 +68,9 @@ with tempfile.TemporaryDirectory() as directory:
         window = MangaReader()
         window.show()
         app.processEvents()
+        assert window.library_kind.currentData() == 'ebook'
+        assert window.library_list.count() == 3
+        window.library_kind.setCurrentIndex(0)
         assert window.library_list.count() == 1
         window.library_kind.setCurrentIndex(1)
         assert window.library_list.count() == 3
@@ -128,6 +131,24 @@ with tempfile.TemporaryDirectory() as directory:
         with patch('main.QMessageBox.warning') as warning:
             assert not restored.load_ebook(broken) and warning.called
             assert restored.stack.currentWidget() is restored.library_panel
+        bookmarks = restored.read_bookmarks()
+        progress = restored.settings.value(restored.ebook_progress_key(txt))
+        renamed = books / 'Renamed.epub'
+        # Let Qt dispose closed PDF documents, as the normal UI event loop does.
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        app.processEvents()
+        epub.rename(renamed)
+        txt.unlink()
+        pdf.unlink()
+        restored.refresh_library()
+        assert restored.library_list.count() == 1
+        assert restored.library_list.item(0).data(256) == str(renamed)
+        assert restored.read_bookmarks() == bookmarks
+        assert restored.settings.value(restored.ebook_progress_key(txt)) == progress
+        assert not any(r['source'] in {str(txt), str(pdf), str(epub)} for r in restored.read_library())
+        renamed.unlink()
+        restored.refresh_library()
+        assert restored.library_list.count() == 0
         restored.close()
         for widget in (window, restored):
             widget.deleteLater()
@@ -135,3 +156,4 @@ with tempfile.TemporaryDirectory() as directory:
         app.processEvents()
 print('PASS: EPUB spine order, internal links, resource isolation, damaged books, TXT encodings and lossless sections')
 print('PASS: library categories, ebook PDF, font resizing, text resume across restart, bookmarks, removal and reopening')
+print('PASS: deletion and rename refresh, PDF file release, preserved bookmarks and reading progress')

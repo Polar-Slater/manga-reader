@@ -7,10 +7,17 @@ from urllib.parse import unquote, urlsplit
 import xml.etree.ElementTree as ET
 from zipfile import ZipFile, BadZipFile
 
-from PySide6.QtCore import QByteArray, QPoint, QUrl
-from PySide6.QtGui import QFont, QTextDocument
+from PySide6.QtCore import QByteArray, QPoint, QUrl, QSize
+from PySide6.QtGui import QFont, QTextDocument, QColor, QIcon, QPixmap
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTextBrowser,
-                              QComboBox, QPushButton, QLabel, QSpinBox)
+                              QComboBox, QPushButton, QLabel, QSpinBox, QToolButton,
+                              QMenu, QWidgetAction, QGridLayout, QButtonGroup)
+
+
+BACKGROUND_COLORS = (
+    '#C7EDCC', '#FFFFFF', '#FAF9DE', '#FFF2E2', '#FDE6E0', '#DCE2F1',
+    '#E9EBFE', '#EAEAEF', '#E3EDCD', '#CCE8CF', '#6E7B6C',
+)
 
 
 def member_path(base, href):
@@ -140,6 +147,7 @@ class EbookReader(QWidget):
         self.chapters.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.font_size = QSpinBox()
         self.font_size.setRange(10, 36)
+        self.font_size.setMaximumWidth(70)
         self.font_size.setValue(settings.value('ebook_font_size', 16, type=int))
         for widget in (self.previous, self.chapters, self.next, QLabel('Font size'), self.font_size):
             controls.addWidget(widget)
@@ -147,11 +155,59 @@ class EbookReader(QWidget):
         self.browser = BookBrowser()
         self.browser.setStyleSheet('QTextBrowser { padding: 24px; }')
         layout.addWidget(self.browser)
+        self.background_button = QToolButton()
+        self.background_button.setAccessibleName('Background')
+        preview = QPixmap(24, 18)
+        preview.fill(self.browser.palette().base().color())
+        self.background_button.setIcon(QIcon(preview))
+        self.background_button.setIconSize(QSize(24, 18))
+        self.background_button.setToolTip('Change reading background')
+        self.background_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.background_menu = QMenu(self.background_button)
+        swatches = QWidget()
+        grid = QGridLayout(swatches)
+        self.background_group = QButtonGroup(self)
+        self.background_group.setExclusive(True)
+        self.background_swatches = {}
+        for index, color in enumerate(BACKGROUND_COLORS):
+            swatch = QToolButton()
+            swatch.setCheckable(True)
+            swatch.setFixedSize(38, 34)
+            swatch.setAccessibleName(f'Reading background {color}')
+            swatch.setStyleSheet(
+                f'QToolButton {{ background-color: {color}; border: 1px solid #888; border-radius: 4px; }}'
+                'QToolButton:checked { border: 3px solid #1769aa; }'
+                'QToolButton:hover, QToolButton:focus { border: 3px solid #333; }')
+            swatch.clicked.connect(lambda checked=False, value=color: self.change_background(value))
+            self.background_group.addButton(swatch)
+            self.background_swatches[color] = swatch
+            grid.addWidget(swatch, index // 4, index % 4)
+        swatch_action = QWidgetAction(self.background_menu)
+        swatch_action.setDefaultWidget(swatches)
+        self.background_menu.addAction(swatch_action)
+        self.background_button.setMenu(self.background_menu)
+        controls.addWidget(self.background_button)
+        saved_background = settings.value('ebook_background', '')
+        if saved_background in BACKGROUND_COLORS:
+            self.change_background(saved_background)
         self.previous.clicked.connect(lambda: self.show_chapter(self.index - 1))
         self.next.clicked.connect(lambda: self.show_chapter(self.index + 1))
         self.chapters.activated.connect(self.show_chapter)
         self.font_size.valueChanged.connect(self.change_font)
         self.browser.anchorClicked.connect(self.follow_link)
+
+    def change_background(self, color):
+        if color not in BACKGROUND_COLORS:
+            return
+        self.browser.setStyleSheet(
+            f'QTextBrowser {{ padding: 24px; background-color: {color}; color: #000000; }}')
+        self.background_swatches[color].setChecked(True)
+        preview = QPixmap(24, 18)
+        preview.fill(QColor(color))
+        self.background_button.setIcon(QIcon(preview))
+        self.settings.setValue('ebook_background', color)
+        self.settings.sync()
+        self.background_menu.close()
 
     def open_book(self, book, position):
         self.book = book

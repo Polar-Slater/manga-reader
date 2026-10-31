@@ -66,6 +66,7 @@ class MangaReader(QMainWindow):
         self.library_kind = QComboBox()
         self.library_kind.addItem('Manga', 'manga')
         self.library_kind.addItem('Ebook', 'ebook')
+        self.library_kind.setCurrentIndex(1)
         library_layout.addWidget(self.library_kind)
         self.introduction = QLabel()
         self.introduction.setWordWrap(True)
@@ -221,16 +222,27 @@ class MangaReader(QMainWindow):
 
     def discover_library(self):
         records = self.read_library()
-        known = {Path(r['source']) for r in records} | self.hidden_library_sources()
         try:
             sources = [(source, 'manga') for source in library_sources(DEFAULT_MANGA_FOLDER)]
             sources += [(source, 'ebook') for source in ebook_sources(DEFAULT_BOOKS_FOLDER)]
         except OSError:
             self.statusBar().showMessage('Could not scan the library folders. Check access and click Refresh to retry.')
             return
+        retained = []
+        for record in records:
+            try:
+                Path(record['source']).stat()
+            except (FileNotFoundError, NotADirectoryError):
+                # Remove stale membership only; progress and bookmarks live separately.
+                continue
+            except OSError:
+                # An access error is not evidence that the title was deleted.
+                pass
+            retained.append(record)
+        known = {Path(r['source']) for r in retained} | self.hidden_library_sources()
         additions = [{'source': str(source), 'kind': kind} for source, kind in sources if source not in known]
-        if additions:
-            self.write_library(records + additions)
+        if additions or retained != records:
+            self.write_library(retained + additions)
 
     def refresh_library(self):
         kind = self.library_kind.currentData()
@@ -276,6 +288,9 @@ class MangaReader(QMainWindow):
         self.ebook_reader.browser.book = None
         self.ebook_reader.browser.clear()
         self.pdf.close()
+        # Dispose Qt's file-backed PDF document so Windows releases its file handle.
+        self.pdf.deleteLater()
+        self.pdf = QPdfDocument(self)
         self.pdf_path = None
         self.folder = None
         self.pages = []

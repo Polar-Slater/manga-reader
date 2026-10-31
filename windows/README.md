@@ -4,10 +4,13 @@ A Python / PySide6 desktop reader for local manga and ebooks.
 
 ## Manga and Ebook libraries
 
-Choose **Manga** or **Ebook** in the library. Manga discovers title folders and
+The library starts in **Ebook**, showing titles from `books`. Switch to **Manga**
+for comics. Manga discovers title folders and
 PDFs inside `Manga`; Ebook discovers EPUB, TXT, and PDF files directly inside
 `books`, alongside `Manga` at the project root. Click **Refresh** after adding
 files, then double-click a title. All titles are opened through the library.
+Refresh also removes entries for deleted or moved files/folders, preserving
+their saved reading progress and bookmarks. Renamed files appear as new titles.
 Removing a library entry hides it without deleting the file. **Restore hidden
 titles** makes removed titles in `Manga` and `books` discoverable again.
 
@@ -17,6 +20,11 @@ selectable text, adjustable font size, saved reading position, and bookmarks
 responsive layout. UTF-8, BOM-marked UTF-16/32, and common GB18030 Chinese text
 are supported, with a Windows-1252 fallback. If text looks incorrect, save the
 file as UTF-8. PDFs use the existing fixed-page viewer, zoom, and page bookmarks.
+
+In the EPUB/TXT reader, click the color swatch beside the font size (the
+**Change reading background** button) and choose a color. The
+eleven choices have no visible color names. Your selection is saved for future
+books and app sessions; text uses black for contrast with the selected color.
 
 EPUB support targets DRM-free text-based EPUB 2/3 books, with spine chapter
 order, basic formatting, embedded images, and links between chapters. Advanced

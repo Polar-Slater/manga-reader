@@ -30,6 +30,7 @@ with (tempfile.TemporaryDirectory() as directory,
     (root / 'notes.txt').write_text('Not an image')
     assert [p.name for p in image_files(root)] == ['1.png', '2.png', '10.png', '11.png']
     window = MangaReader()
+    window.library_kind.setCurrentIndex(0)
     window.show()
     app.processEvents()
     window.load_folder(root)
@@ -50,6 +51,7 @@ with (tempfile.TemporaryDirectory() as directory,
     assert not window.pixmap.isNull()
     window.close()
     restored = MangaReader()
+    restored.library_kind.setCurrentIndex(0)
     app.processEvents()
     assert not restored.pages and restored.stack.currentWidget() is restored.library_panel
     restored.open_library_entry()
@@ -87,6 +89,7 @@ with (tempfile.TemporaryDirectory() as directory,
     restored.move(1)
     restored.close()
     resumed = MangaReader()
+    resumed.library_kind.setCurrentIndex(0)
     app.processEvents()
     assert not resumed.pages
     resumed.open_library_entry()
@@ -118,6 +121,7 @@ with (tempfile.TemporaryDirectory() as directory,
     resumed.move(-1)
     resumed.close()
     pdf_resume = MangaReader()
+    pdf_resume.library_kind.setCurrentIndex(0)
     app.processEvents()
     assert not pdf_resume.pages
     pdf_resume.open_library_entry()
@@ -127,6 +131,7 @@ with (tempfile.TemporaryDirectory() as directory,
     pdf_resume.move(1)
     pdf_resume.close()
     direct_resume = MangaReader()
+    direct_resume.library_kind.setCurrentIndex(0)
     app.processEvents()
     assert not direct_resume.pages
     direct_resume.open_library_entry()
@@ -146,6 +151,7 @@ with (tempfile.TemporaryDirectory() as directory,
     assert len(direct_resume.read_bookmarks()) == 2
     direct_resume.close()
     bookmark_reader = MangaReader()
+    bookmark_reader.library_kind.setCurrentIndex(0)
     app.processEvents()
     assert bookmark_reader.bookmark_list.count() == 2
     bookmark_reader.bookmark_list.setCurrentRow(0)
@@ -220,17 +226,21 @@ with (tempfile.TemporaryDirectory() as directory,
     assert direct_resume.settings.value(progress_key) == saved_position
     direct_resume.close()
     home = MangaReader()
+    home.library_kind.setCurrentIndex(0)
     app.processEvents()
     assert home.library_list.count() == 0 and not home.pages
     home.load_folder(manga)
     assert home.index == saved_index
     home.show_library()
-    # Missing sources remain removable and never take the user away from the library.
+    # Refresh prunes missing sources without changing saved progress or bookmarks.
     home.write_library([{'source': str(root / 'missing')}])
     home.refresh_library()
     with patch('main.QMessageBox.warning') as warning:
         home.open_library_entry()
-        assert warning.called and not home.pages
+        assert not warning.called and not home.pages
+        assert home.library_list.count() == 0 and home.read_library() == []
+        assert home.settings.value(progress_key) == saved_position
+        assert home.read_bookmarks() == bookmarks
         assert home.stack.currentWidget() is home.library_panel
     home.close()
     # Legacy settings migrate once without scanning a manga at startup.
@@ -238,6 +248,7 @@ with (tempfile.TemporaryDirectory() as directory,
     home.settings.setValue('last_folder', str(manga))
     with patch('main.image_files', side_effect=AssertionError('Startup must not scan manga')):
         migrated = MangaReader()
+        migrated.library_kind.setCurrentIndex(0)
         app.processEvents()
         assert not migrated.pages and migrated.library_list.count() == 1
     migrated.open_library_entry()
@@ -258,6 +269,7 @@ with (tempfile.TemporaryDirectory() as directory,
     (auto_root / 'Book.PDF').write_bytes(pdf_file.read_bytes())
     assert [p.name for p in library_sources(auto_root)] == ['Book.PDF', 'Title 2', 'Title 10']
     auto = MangaReader()
+    auto.library_kind.setCurrentIndex(0)
     assert not auto.pages and auto.library_list.count() == 3
     auto.library_list.setCurrentRow(1)
     auto.open_library_entry()
@@ -273,6 +285,7 @@ with (tempfile.TemporaryDirectory() as directory,
     assert auto.library_list.count() == 2
     auto.close()
     rediscovered = MangaReader()
+    rediscovered.library_kind.setCurrentIndex(0)
     assert rediscovered.library_list.count() == 2 and not rediscovered.pages
     rediscovered.load_folder(auto_root / 'Title 2')
     assert rediscovered.index == 1
@@ -284,6 +297,13 @@ with (tempfile.TemporaryDirectory() as directory,
     with patch('main.library_sources', side_effect=PermissionError('unavailable')):
         rediscovered.refresh_library()
         assert rediscovered.library_list.count() == 4
+    (auto_root / 'Title 3').rmdir()
+    rediscovered.refresh_library()
+    assert rediscovered.library_list.count() == 3
+    (auto_root / 'Book.PDF').unlink()
+    rediscovered.refresh_library()
+    assert rediscovered.library_list.count() == 2
+    assert all(Path(record['source']).exists() for record in rediscovered.read_library())
     rediscovered.close()
     for reader_window in [window, restored, resumed, pdf_resume, direct_resume, bookmark_reader, home, migrated, auto, rediscovered]:
         reader_window.deleteLater()

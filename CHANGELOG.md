@@ -4,7 +4,13 @@ This file records user-visible changes. The current version is stored in `VERSIO
 
 ## Unreleased
 
-No changes yet.
+- Library refresh now removes titles whose files or folders were deleted or moved,
+  while preserving saved reading progress and bookmarks.
+- Returning to the library releases the PDF file handle so files can be moved
+  or deleted on Windows.
+- The Windows library now starts in Ebook, showing titles from `books`.
+- Added an ebook background picker with eleven color-only swatches and a saved
+  selection that persists between sessions.
 
 ## 0.3.0 - 2026-10-30
 
