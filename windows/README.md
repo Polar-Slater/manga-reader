@@ -116,6 +116,10 @@ include the chapter path, so repeated image names in different chapters work.
 | F | Toggle fit-to-window |
 | F11 / Escape | Toggle fullscreen / leave fullscreen |
 
+Manga opens with the entire page scaled to fit the window, preserving its
+proportions. Pages automatically refit when you resize the window. Opening a
+title resets any previous manual zoom. Use **Zoom + / Zoom −** for a closer look
+and **F** to return to fit mode.
 When zoomed in, use the scrollbars or mouse wheel to move around the page.
 The last folder and each folder's reading position are saved automatically
 using Qt's user settings (on Windows, under HKCU\Software\LearningCode\MangaReader).

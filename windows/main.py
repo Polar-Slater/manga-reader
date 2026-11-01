@@ -515,12 +515,17 @@ class MangaReader(QMainWindow):
                 self.chapter_picker.addItem(str(relative) if relative.parts else self.folder.name)
         self.settings.setValue('last_folder', str(self.folder))
         self.set_hidden_library_sources(self.hidden_library_sources() - {self.folder})
+        # Every title opens with the whole page visible, even after manual zoom.
+        self.fit.setChecked(True)
+        self.zoom = 1.0
         self.stack.setCurrentWidget(self.scroll)
         self.reader_toolbar.setEnabled(True)
         self.reader_toolbar.show()
         self.chapters_toolbar.setEnabled(True)
         self.chapters_toolbar.show()
         self.show_page()
+        # Refit once Qt has laid out the newly visible reader controls.
+        self.render_timer.start(0)
         return True
 
     def move(self, delta):

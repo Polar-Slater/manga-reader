@@ -42,6 +42,22 @@ with (tempfile.TemporaryDirectory() as directory,
     window.move(1)
     window.change_zoom(1.25)
     assert not window.fit.isChecked()
+    window.show_library()
+    window.load_folder(root)
+    for _ in range(5):
+        app.processEvents()
+    assert window.fit.isChecked()
+    for width, height in [(800, 600), (1200, 900)]:
+        window.resize(width, height)
+        for _ in range(5):
+            app.processEvents()
+        viewport = window.scroll.viewport().size()
+        displayed = window.label.pixmap().size()
+        assert displayed.width() <= viewport.width()
+        assert displayed.height() <= viewport.height()
+        assert abs(displayed.width() / displayed.height() - 600 / 900) < 0.01
+        assert window.scroll.horizontalScrollBar().maximum() == 0
+        assert window.scroll.verticalScrollBar().maximum() == 0
     window.fit.setChecked(True)
     window.render()
     window.move(100)

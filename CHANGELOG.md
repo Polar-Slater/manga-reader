@@ -4,6 +4,8 @@ This file records user-visible changes. The current version is stored in `VERSIO
 
 ## Unreleased
 
+- Windows manga titles now open in fit-to-window mode even after manual zoom,
+  with sizing refreshed after the reader controls appear.
 - Library refresh now removes titles whose files or folders were deleted or moved,
   while preserving saved reading progress and bookmarks.
 - Returning to the library releases the PDF file handle so files can be moved
